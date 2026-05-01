@@ -1,12 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { PlanCard } from "@/components/plan-card"
 import { Heart, MapPin, Lightbulb, Star, ListChecks, Bell } from "lucide-react"
-
-const plans = [
+const samplePlans = [
   {
     badge: "Low-cost",
     badgeColor: "teal" as const,
@@ -45,26 +44,21 @@ const features = [
   { icon: Bell, label: "Reminder before the plan" },
 ]
 
-type CityStatus = "teal" | "amber" | "gray"
-
-const cities: { name: string; status: string; color: CityStatus }[] = [
-  { name: "Vancouver, Canada", status: "Available", color: "teal" },
-  { name: "Burnaby, Canada", status: "Available", color: "teal" },
-  { name: "Beijing, China", status: "Beta", color: "amber" },
-  { name: "Shanghai, China", status: "Coming soon", color: "gray" },
-]
-
-const cityBadgeStyles: Record<CityStatus, string> = {
-  teal: "bg-teal-100 text-teal-700 border-teal-200",
-  amber: "bg-amber-100 text-amber-700 border-amber-200",
-  gray: "bg-gray-100 text-gray-500 border-gray-200",
-}
-
 export default function Home() {
   const router = useRouter()
+  const [hasProfile, setHasProfile] = useState(false)
+
+  useEffect(() => {
+    setHasProfile(!!localStorage.getItem("family_profile"))
+  }, [])
+
+  const handleStart = () => {
+    const hasProfile = !!localStorage.getItem("family_profile")
+    router.push(hasProfile ? "/idea" : "/settings")
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background pb-16">
       {/* Navbar */}
       <nav className="sticky top-0 z-50 bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -72,7 +66,7 @@ export default function Home() {
             Weekend Planner
           </span>
           <a
-            href="#"
+            href="/login"
             className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
           >
             Sign in
@@ -92,13 +86,13 @@ export default function Home() {
         <div className="flex justify-center">
           <Button
             className="w-full max-w-xs h-12 text-base rounded-xl bg-teal-600 hover:bg-teal-700 text-white border-none"
-            onClick={() => router.push("/city")}
+            onClick={handleStart}
           >
-            Choose your city →
+            {hasProfile ? "Plan this weekend →" : "Get started →"}
           </Button>
         </div>
         <p className="mt-3 text-xs text-gray-400">
-          Available in selected cities · More cities coming soon
+          Available in selected cities
         </p>
       </section>
 
@@ -109,7 +103,7 @@ export default function Home() {
         </p>
         <div className="px-4 overflow-x-auto">
           <div className="flex gap-4 md:grid md:grid-cols-3 md:max-w-5xl md:mx-auto pb-2">
-            {plans.map((plan) => (
+            {samplePlans.map((plan) => (
               <PlanCard key={plan.title} {...plan} />
             ))}
           </div>
@@ -133,29 +127,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Cities */}
-      <section className="max-w-md mx-auto px-6 py-10">
-        <h2 className="text-xl font-bold text-gray-900 text-center mb-6">
-          Available cities
-        </h2>
-        <div className="flex flex-col gap-3">
-          {cities.map(({ name, status, color }) => (
-            <div
-              key={name}
-              onClick={color === "teal" ? () => router.push("/city") : undefined}
-              className={`flex items-center justify-between bg-white rounded-2xl px-4 py-3 shadow-sm transition-colors ${
-                color === "teal"
-                  ? "cursor-pointer hover:bg-teal-50"
-                  : ""
-              }`}
-            >
-              <span className="text-sm text-gray-700">{name}</span>
-              <Badge className={cityBadgeStyles[color]}>{status}</Badge>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="bg-teal-50 py-16 px-6 text-center">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">
@@ -163,9 +134,9 @@ export default function Home() {
         </h2>
         <Button
           className="h-12 px-8 text-base rounded-xl bg-teal-600 hover:bg-teal-700 text-white border-none"
-          onClick={() => router.push("/city")}
+          onClick={handleStart}
         >
-          Choose your city →
+          Plan this weekend →
         </Button>
       </section>
 

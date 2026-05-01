@@ -1,20 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  Clock,
-  CreditCard,
-  Users,
-  MapPin,
-  Sun,
-  Cloud,
-  ClipboardList,
-} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -23,79 +13,32 @@ import {
 } from "@/components/ui/dialog"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
+import type { GeneratedPlan } from "@/lib/api"
 
-// ─── Types & Data ──────────────────────────────────────────────────────────────
+// ─── Badge mapping ─────────────────────────────────────────────────────────────
 
-type BadgeColor = "teal" | "blue" | "purple"
-
-interface PlanData {
-  id: string
-  badge: string
-  badgeColor: BadgeColor
-  title: string
-  time: string
-  budget: string
-  ages: string
-  location: string
-  environment: "Indoor" | "Outdoor"
-  registration: string
-  reason: string
-  source: string
-  lastChecked: string
+const PLAN_TYPE_BADGE: Record<string, string> = {
+  low_cost: "Low-cost",
+  rain_friendly: "Rain-friendly",
+  special_event: "Special event",
+  place_based_fallback: "Place-based",
+  custom_idea: "Custom idea",
 }
 
-const PLANS: PlanData[] = [
-  {
-    id: "1",
-    badge: "Low-cost",
-    badgeColor: "teal",
-    title: "Library Storytime + Deer Lake Walk",
-    time: "Saturday afternoon · 2.5 hours",
-    budget: "Free",
-    ages: "Ages 4–8",
-    location: "Burnaby",
-    environment: "Outdoor",
-    registration: "No registration needed",
-    reason: "Matches low-cost + outdoor for kids aged 6",
-    source: "Burnaby Public Library",
-    lastChecked: "Last checked Apr 22",
-  },
-  {
-    id: "2",
-    badge: "Rain-friendly",
-    badgeColor: "blue",
-    title: "Science World Indoor Afternoon",
-    time: "Sunday afternoon · 3 hours",
-    budget: "$20–50",
-    ages: "Ages 6–12",
-    location: "Vancouver",
-    environment: "Indoor",
-    registration: "Tickets recommended in advance",
-    reason: "Great rainy day option, fits age range and budget",
-    source: "Science World",
-    lastChecked: "Last checked Apr 20",
-  },
-  {
-    id: "3",
-    badge: "Special event",
-    badgeColor: "purple",
-    title: "Family Art Workshop",
-    time: "Saturday morning · 2 hours",
-    budget: "Under $20",
-    ages: "Ages 5–10",
-    location: "Vancouver",
-    environment: "Indoor",
-    registration: "Registration required",
-    reason: "Unique this weekend, creative and age-appropriate",
-    source: "Vancouver Art Gallery",
-    lastChecked: "Last checked Apr 21",
-  },
-]
+const PLAN_GRADIENTS: Record<string, string> = {
+  low_cost: "from-emerald-400 to-teal-600",
+  rain_friendly: "from-sky-400 to-blue-600",
+  special_event: "from-orange-400 to-rose-500",
+  place_based_fallback: "from-teal-400 to-cyan-500",
+  custom_idea: "from-violet-400 to-purple-500",
+}
 
-const BADGE_STYLES: Record<BadgeColor, string> = {
-  teal: "bg-teal-100 text-teal-700 border-teal-200",
-  blue: "bg-blue-100 text-blue-700 border-blue-200",
-  purple: "bg-purple-100 text-purple-700 border-purple-200",
+const PLAN_BADGE_BG: Record<string, string> = {
+  low_cost: "bg-emerald-500",
+  rain_friendly: "bg-sky-500",
+  special_event: "bg-orange-500",
+  place_based_fallback: "bg-teal-500",
+  custom_idea: "bg-violet-500",
 }
 
 const CHANGE_REASONS = [
@@ -114,85 +57,74 @@ const CHANGE_REASONS = [
 // ─── Plan Card ─────────────────────────────────────────────────────────────────
 
 interface PlanCardProps {
-  plan: PlanData
+  plan: GeneratedPlan
   onSave: () => void
   onViewDetails: () => void
   onNotThis: () => void
 }
 
 function PlanCard({ plan, onSave, onViewDetails, onNotThis }: PlanCardProps) {
+  const badgeLabel = PLAN_TYPE_BADGE[plan.plan_type] ?? plan.plan_type
+  const gradient = PLAN_GRADIENTS[plan.plan_type] ?? "from-teal-400 to-emerald-600"
+  const badgeBg = PLAN_BADGE_BG[plan.plan_type] ?? "bg-teal-500"
+
+  const metaParts: string[] = [
+    plan.estimated_duration,
+    plan.budget,
+    plan.age_min != null || plan.age_max != null ? `Ages ${plan.age_min ?? 0}–${plan.age_max ?? 12}` : null,
+    plan.location,
+  ].filter(Boolean) as string[]
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4">
-      <Badge className={BADGE_STYLES[plan.badgeColor]}>{plan.badge}</Badge>
-      <h3 className="font-semibold text-gray-800 text-base mt-2 leading-snug">
-        {plan.title}
-      </h3>
-
-      {/* Info rows */}
-      <div className="flex flex-col gap-1.5 mt-3 text-sm text-gray-500">
-        <div className="flex items-center gap-2">
-          <Clock className="size-3.5 shrink-0" />
-          <span>{plan.time}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <CreditCard className="size-3.5 shrink-0" />
-          <span>{plan.budget}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Users className="size-3.5 shrink-0" />
-          <span>{plan.ages}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <MapPin className="size-3.5 shrink-0" />
-          <span>{plan.location}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {plan.environment === "Indoor" ? (
-            <Cloud className="size-3.5 shrink-0" />
-          ) : (
-            <Sun className="size-3.5 shrink-0" />
-          )}
-          <span>{plan.environment}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ClipboardList className="size-3.5 shrink-0" />
-          <span>{plan.registration}</span>
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      {/* Gradient image area */}
+      <div className={cn("h-36 bg-gradient-to-br relative", gradient)}>
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="absolute bottom-3 left-3">
+          <span className={cn("text-white text-xs font-semibold px-2.5 py-1 rounded-full", badgeBg)}>
+            {badgeLabel}
+          </span>
         </div>
       </div>
 
-      {/* Reason + source */}
-      <div className="border-t border-gray-100 mt-3 pt-3">
-        <p className="italic text-xs text-gray-500">
-          &ldquo;{plan.reason}&rdquo;
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          {plan.source} · {plan.lastChecked}
-        </p>
-      </div>
+      {/* Content */}
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-900 text-sm leading-snug mb-2">{plan.title}</h3>
+        {metaParts.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+            {metaParts.map((part, i) => (
+              <span key={i}>{part}</span>
+            ))}
+          </div>
+        )}
+        {plan.recommendation_reason && (
+          <p className="italic text-xs text-gray-400 mt-2">&ldquo;{plan.recommendation_reason}&rdquo;</p>
+        )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between border-t border-gray-100 mt-3 pt-3">
-        <button
-          type="button"
-          onClick={onViewDetails}
-          className="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors"
-        >
-          View details
-        </button>
-        <Button
-          size="sm"
-          className="bg-teal-600 hover:bg-teal-700 text-white border-none"
-          onClick={onSave}
-        >
-          Save plan
-        </Button>
-        <button
-          type="button"
-          onClick={onNotThis}
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          Not this
-        </button>
+        {/* Actions */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors"
+          >
+            View details
+          </button>
+          <Button
+            size="sm"
+            className="bg-teal-600 hover:bg-teal-700 text-white border-none"
+            onClick={onSave}
+          >
+            Save plan
+          </Button>
+          <button
+            type="button"
+            onClick={onNotThis}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Not this
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -202,20 +134,55 @@ function PlanCard({ plan, onSave, onViewDetails, onNotThis }: PlanCardProps) {
 
 export default function ResultsPage() {
   const router = useRouter()
+  const [planList, setPlanList] = useState<GeneratedPlan[]>([])
+  const [profileSummary, setProfileSummary] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [notThisOpen, setNotThisOpen] = useState(false)
   const [selectedReasons, setSelectedReasons] = useState<string[]>([])
 
+  useEffect(() => {
+    const raw = localStorage.getItem("current_plans")
+    if (raw) {
+      try {
+        setPlanList(JSON.parse(raw))
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    const profile = (() => {
+      try { return JSON.parse(localStorage.getItem("family_profile") ?? "{}") } catch { return {} }
+    })()
+    const cityName = profile.city_name ?? localStorage.getItem("city_name") ?? "Your city"
+    const ages = (profile.children ?? []).map((c: { age: number }) => c.age)
+    const agePart = ages.length ? `Kids ${ages.join(" & ")}` : null
+    const budgetMap: Record<string, string> = {
+      free: "Free", under_20: "Under $20", "20_50": "Under $50", "50_plus": "$50+",
+    }
+    const budgetPart = budgetMap[profile.budget] ?? null
+    const transportPart = profile.transport === "car" ? "Car" : profile.transport ?? null
+    setProfileSummary(
+      [cityName, agePart, budgetPart, transportPart].filter(Boolean).join(" · ")
+    )
+  }, [])
+
   const toggleReason = (reason: string) => {
     setSelectedReasons((prev) =>
-      prev.includes(reason)
-        ? prev.filter((r) => r !== reason)
-        : [...prev, reason]
+      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
     )
   }
 
+  const handleSave = (plan: GeneratedPlan) => {
+    const token = localStorage.getItem("session_token")
+    if (!token) {
+      router.push(`/login?redirect=/plans/${plan.id}/save`)
+      return
+    }
+    router.push(`/plans/${plan.id}/save`)
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Toaster />
 
       {/* Nav */}
@@ -224,38 +191,30 @@ export default function ResultsPage() {
           <span className="text-teal-600 font-semibold text-base tracking-tight">
             Weekend Planner
           </span>
-          <div
-            className="w-8 h-8 rounded-full bg-gray-200 shrink-0"
-            aria-hidden="true"
-          />
+          <Link
+            href="/login"
+            className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Sign in
+          </Link>
         </div>
       </nav>
 
-      <div className="max-w-lg mx-auto px-4 py-6 pb-12">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-20">
         {/* Summary */}
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            This Weekend
-          </h1>
+          <h1 className="text-2xl font-semibold text-gray-900">This Weekend</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Here are 3 family plans picked for you.
+            {planList.length > 0
+              ? `Here are ${planList.length} family plan${planList.length > 1 ? "s" : ""} picked for you.`
+              : "No plans available — try adjusting your preferences."}
           </p>
-          <div className="mt-3">
-            <Badge className="bg-teal-50 text-teal-700 border-teal-100 rounded-full">
-              Vancouver · Kitsilano
-            </Badge>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Kids 6 &amp; 10 · Under $50 · Car · Within 30 min
-          </p>
-          <div className="mt-3 inline-block bg-teal-50 rounded-lg px-3 py-1.5">
-            <p className="text-xs text-teal-700">
-              Based on your idea: Indoor · Low-cost · Half-day
-            </p>
-          </div>
+          {profileSummary && (
+            <p className="text-xs text-gray-500 mt-2">{profileSummary}</p>
+          )}
           <div className="flex gap-4 mt-3">
             <Link
-              href="/onboarding"
+              href="/settings"
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
             >
               Change preferences
@@ -270,44 +229,57 @@ export default function ResultsPage() {
         </div>
 
         {/* Plan cards */}
-        <div className="flex flex-col gap-4">
-          {PLANS.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              onSave={() => {
-                toast("Plan saved!")
-                setTimeout(() => router.push("/saved"), 800)
-              }}
-              onViewDetails={() => router.push(`/plans/${plan.id}`)}
-              onNotThis={() => setNotThisOpen(true)}
-            />
-          ))}
-        </div>
+        {planList.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {planList.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                onSave={() => handleSave(plan)}
+                onViewDetails={() => router.push(`/plans/${plan.id}`)}
+                onNotThis={() => setNotThisOpen(true)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+            <p className="text-gray-500 mb-4">
+              We couldn&apos;t find matching activities right now.
+            </p>
+            <Button
+              className="bg-teal-600 hover:bg-teal-700 text-white border-none"
+              onClick={() => router.push("/idea")}
+            >
+              Try a different idea
+            </Button>
+          </div>
+        )}
 
         {/* Want something different */}
-        <div className="mt-6 bg-teal-600 rounded-2xl p-5 text-white">
-          <p className="font-semibold text-base mb-1">
-            Not what you were looking for?
-          </p>
-          <p className="text-sm text-teal-100 mb-4">
-            Tell us what to change and we&apos;ll regenerate better options.
-          </p>
-          <button
-            type="button"
-            onClick={() => setDialogOpen(true)}
-            className="w-full bg-white text-teal-700 font-medium rounded-xl py-3 text-sm hover:bg-teal-50 transition-colors"
-          >
-            Show different plans
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/idea")}
-            className="w-full mt-2 border border-teal-400 text-white rounded-xl py-3 text-sm hover:bg-teal-500 transition-colors"
-          >
-            Change my idea
-          </button>
-        </div>
+        {planList.length > 0 && (
+          <div className="mt-6 bg-teal-600 rounded-2xl p-5 text-white">
+            <p className="font-semibold text-base mb-1">
+              Not what you were looking for?
+            </p>
+            <p className="text-sm text-teal-100 mb-4">
+              Tell us what to change and we&apos;ll regenerate better options.
+            </p>
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="w-full bg-white text-teal-700 font-medium rounded-xl py-3 text-sm hover:bg-teal-50 transition-colors"
+            >
+              Show different plans
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/idea")}
+              className="w-full mt-2 border border-teal-400 text-white rounded-xl py-3 text-sm hover:bg-teal-500 transition-colors"
+            >
+              Change my idea
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Dialog: Not this */}
